@@ -46,7 +46,7 @@ DINO_HEIGHT = 180
 DINO_MARGIN = 45
 DINO_INIT_POSX = 100
 DINO_INIT_POSY = None
-DINO_INIT_SPEED = 500
+DINO_INIT_SPEED = 200
 DINO_JUMP = 200
 DINO_WEIGHT = 150
 
@@ -84,8 +84,7 @@ class Menu(object):
         game.display.blit(TextSurf, TextRect)
 
     def handle_common_events(self, game, event):
-        if event.type == pygame.QUIT:
-            game.quit_the_game()
+        game.handle_common_keys(event)
 
 
 class MainMenu(Menu):
@@ -96,6 +95,7 @@ class MainMenu(Menu):
 
         while True:
             for event in pygame.event.get():
+                print 11, event
                 self.handle_common_events(game, event)
                 self.handle_events(game, event)
             self.print_background(game)
@@ -284,6 +284,7 @@ class Game(object):
         self.clock = pygame.time.Clock()
 
         self.is_paused = False
+        self.cmd_key_down = False
 
         MainMenu(self, "Dino Game")
         self.loop()
@@ -314,8 +315,7 @@ class Game(object):
         while True:
             for event in pygame.event.get():
                 print event
-                if event.type == pygame.QUIT:
-                    self.quit_the_game()
+                self.handle_common_keys(event)
 
                 if event.type == pygame.KEYDOWN:
                     if event.key in [pygame.K_p, pygame.K_ESCAPE]:
@@ -330,6 +330,21 @@ class Game(object):
 
             pygame.display.update()
             self.clock.tick(FPS)
+
+    def handle_common_keys(self, event):
+        if event.type == pygame.QUIT:
+            self.quit_the_game()
+
+        if event.type == pygame.KEYDOWN:
+            print event.key, pygame.K_LSUPER
+            if event.key == 310:
+                self.cmd_key_down = True
+            if self.cmd_key_down and event.key == pygame.K_q:
+                self.quit_the_game()
+
+        if event.type == pygame.KEYUP:
+            if event.key == 310:
+                self.cmd_key_down = False
 
 
 Game()
