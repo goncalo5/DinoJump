@@ -1,7 +1,7 @@
 #!/usr/bin/env python
+import os
 import random
 import pygame
-import os
 pygame.init()
 
 # SETTINGS
@@ -13,6 +13,7 @@ GREEN = (0, 200, 0)
 BLUE = (0, 0, 255)
 BRIGHT_RED = (255, 0, 0)
 BRIGHT_GREEN = (0, 255, 0)
+MAROON = (128,  0,   0)
 
 # Screen
 DISPLAY_WIDTH = 1000
@@ -32,6 +33,7 @@ TEXT_FONT = "freesansbold.ttf"
 TEXT_SIZE = 80
 
 # music:
+MUSIC_ON = False
 MUSIC_GAME = "Rize_Up.mp3"
 CRASH_SOUND = "car_door.wav"
 
@@ -40,15 +42,16 @@ BUTTON_WIDTH = 120
 BUTTON_HEIGHT = 50
 
 # Dino
-DINO_IMG_NAME = "t-rex.png"
+DINO_IMG_NAME = "t-rex3.png"
+# DINO_IMG_NAME = "bad.png"
 DINO_WIDTH = 180
-DINO_HEIGHT = 180
-DINO_MARGIN = 45
+DINO_HEIGHT = 120
+DINO_MARGIN = 0
 DINO_INIT_POSX = 100
 DINO_INIT_POSY = None
-DINO_INIT_SPEED = 200
-DINO_JUMP = 200
-DINO_WEIGHT = 150
+DINO_INIT_SPEED = 300
+DINO_JUMP = 80
+DINO_WEIGHT = 15
 
 
 class Button(object):
@@ -95,7 +98,6 @@ class MainMenu(Menu):
 
         while True:
             for event in pygame.event.get():
-                print 11, event
                 self.handle_common_events(game, event)
                 self.handle_events(game, event)
             self.print_background(game)
@@ -118,7 +120,7 @@ class MainMenu(Menu):
                game.loop)
         Button(game, "QUIT", DISPLAY_WIDTH * 0.7, DISPLAY_HEIGHT *
                0.8, BUTTON_WIDTH, BUTTON_HEIGHT, RED, BRIGHT_RED,
-               game.quit_the_game)
+               game.quit)
 
 
 class PauseMenu(Menu):
@@ -130,7 +132,7 @@ class PauseMenu(Menu):
         self.text = text
 
         while game.is_paused:
-            print "is_paused", game.is_paused
+            # print "is_paused", game.is_paused
             for event in pygame.event.get():
                 print 11, event
                 self.handle_common_events(game, event)
@@ -146,15 +148,51 @@ class PauseMenu(Menu):
         if event.type == pygame.KEYDOWN:
             # print event.key, [pygame.K_p, pygame.K_ESCAPE]
             if event.key in [pygame.K_p, pygame.K_ESCAPE]:
-                game.unpause_the_game()
+                game.to_unpause()
 
     def create_buttons(self, game):
         Button(game, "Continue", DISPLAY_WIDTH * 0.2, DISPLAY_HEIGHT * 0.8,
                BUTTON_WIDTH, BUTTON_HEIGHT, GREEN, BRIGHT_GREEN,
-               game.unpause_the_game)
+               game.to_unpause)
         Button(game, "QUIT", DISPLAY_WIDTH * 0.7, DISPLAY_HEIGHT * 0.8,
                BUTTON_WIDTH, BUTTON_HEIGHT, RED, BRIGHT_RED,
-               game.quit_the_game)
+               game.quit)
+
+
+class GameOverMenu(Menu):
+    def __init__(self, game, text):
+        super(GameOverMenu, self).__init__(game, text)
+        pygame.mixer.music.pause()
+        game.is_paused = True
+
+        self.text = text
+
+        while game.is_paused:
+            # print "is_paused", game.is_paused
+            for event in pygame.event.get():
+                print 11, event
+                self.handle_common_events(game, event)
+                self.handle_events(game, event)
+            self.print_text(game)
+            self.create_buttons(game)
+
+            pygame.display.update()
+            game.clock.tick(15)
+
+    def handle_events(self, game, event):
+        # print "handle_events", event
+        if event.type == pygame.KEYDOWN:
+            # print event.key, [pygame.K_p, pygame.K_ESCAPE]
+            if event.key in [pygame.K_RETURN]:
+                game.loop()
+
+    def create_buttons(self, game):
+        Button(game, "Play Again", DISPLAY_WIDTH * 0.2, DISPLAY_HEIGHT * 0.8,
+               BUTTON_WIDTH, BUTTON_HEIGHT, GREEN, BRIGHT_GREEN,
+               game.loop)
+        Button(game, "QUIT", DISPLAY_WIDTH * 0.7, DISPLAY_HEIGHT * 0.8,
+               BUTTON_WIDTH, BUTTON_HEIGHT, RED, BRIGHT_RED,
+               game.quit)
 
 
 class Dino(object):
@@ -169,36 +207,51 @@ class Dino(object):
         else:
             self.y = DISPLAY_HEIGHT * 0.5
         # self.speed = float(DINO_INIT_SPEED) / FPS
-        self.jump = float(DINO_JUMP)  # / FPS
+        self.jump = float(DINO_JUMP) / FPS ** 0.5
         self.weight = float(DINO_WEIGHT) / FPS
 
         self.dx = 0
         self.dy = self.weight
 
-        self.draw(game)
+        self.jump_active = False
+
+        self.try_load_dino_image(DINO_IMG_NAME)
+        self.update(game)
 
     def try_load_dino_image(self, dino_image_name):
         try:
             path_and_file = os.path.join("images", dino_image_name)
             self.img = pygame.image.load(path_and_file)
+            print 5, self.img
             pygame.display.set_icon(self.img)
         except pygame.error:
             import traceback
             print(traceback.format_exc())
             self.img = None
 
-    def draw(self, game):
+    def update(self, game):
+
+        if self.y + (self.height - DINO_MARGIN) > game.ground.y - 20:
+            self.dy = 0
         self.x += self.dx
         self.y += self.dy
-        self.y += self.weight
+        self.dy += self.weight
         self.y = min(self.y, game.ground.y - (self.height - DINO_MARGIN))
 
-        self.try_load_dino_image(DINO_IMG_NAME)
         if self.img is None:
-            pygame.draw.rect(game.display, RED, (self.x, self.y,
-                                                 self.width, self.height))
+            self.obj = pygame.draw.rect(game.display, RED,
+                                        (self.x + DINO_MARGIN,
+                                         self.y,
+                                         self.width - 2 * DINO_MARGIN,
+                                         self.height-30))
         else:
-            game.display.blit(self.img, (self.x, self.y))
+
+            self.obj = game.display.blit(self.img, (self.x, self.y))
+
+        for objtree in game.ground.effects.tree.objs:
+            if self.obj.colliderect(objtree):
+                print "colisao"
+                game.over()
 
     def handle_events(self, game, event):
 
@@ -206,7 +259,15 @@ class Dino(object):
             print self.y, game.ground.y
             if event.key in [pygame.K_UP, pygame.K_SPACE] and\
                     self.y + (self.height - DINO_MARGIN) > game.ground.y - 20:
-                self.y += -self.jump
+                self.jump_active = True
+                self.dy -= self.jump
+                self.y -= 50
+
+        # control the jump
+        if event.type == pygame.KEYUP:
+            if self.jump_active and event.key in [pygame.K_UP, pygame.K_SPACE]:
+                self.dy = max(self.dy, 0)
+                self.jump_active = False
 
 
 class GroundOrnaments(object):
@@ -240,13 +301,26 @@ class Tree(object):
         self.width = 10
         self.height = 80
         self.speed = ground.speed
+        self.objs = []
+        # # self.img = pygame.draw.rect(game.display, MAROON,
+        # #                             (self.x, self.y - self.height,
+        # #                              self.width, self.height))
+        # self.objs.append(pygame.draw.rect(game.display, MAROON,
+        #                                   (self.x, self.y - self.height,
+        #                                    self.width, self.height)))
 
     def update(self, game):
         self.x -= self.speed
         if self.x < 0:
             self.x = DISPLAY_WIDTH
-        pygame.draw.rect(game.display, BLUE, (self.x, self.y - self.height,
-                                              self.width, self.height))
+        self.objs = []
+        self.objs.append(pygame.draw.rect(game.display, MAROON,
+                                          (self.x, self.y - self.height,
+                                           self.width, self.height)))
+        self.objs.append(pygame.draw.ellipse(game.display, GREEN,
+                                             (self.x - self.height / 2.,
+                                              self.y - self.height,
+                                              self.height, self.width * 3)))
 
 
 class GroundEffects(object):
@@ -288,24 +362,37 @@ class Game(object):
 
         MainMenu(self, "Dino Game")
         self.loop()
-        self.quit_the_game()
+        self.quit()
 
-    def quit_the_game(self):
+    def quit(self):
         pygame.quit()
         quit()
 
-    def unpause_the_game(self):
-        print "unpause_the_game"
-        pygame.mixer.music.unpause()
+    def to_pause(self):
+        PauseMenu(self, "PAUSED")
+
+    def to_unpause(self):
+        print "to_unpause"
+        if MUSIC_ON:
+            pygame.mixer.music.unpause()
         self.is_paused = False
+
+    def over(self):
+        print "game over"
+        if MUSIC_ON:
+            pygame.mixer.music.stop()
+            crash_sound = pygame.mixer.Sound(os.path.join("musics", CRASH_SOUND))
+            pygame.mixer.Sound.play(crash_sound)
+        GameOverMenu(self, "Game Over")
 
     def text_objects(self, text, font):
         textSurface = font.render(text, True, TEXT_COLOR)
         return textSurface, textSurface.get_rect()
 
     def loop(self):
-        # pygame.mixer.music.load(MUSIC_GAME)
-        # pygame.mixer.music.play(-1)
+        if MUSIC_ON:
+            pygame.mixer.music.load(os.path.join("musics", MUSIC_GAME))
+            pygame.mixer.music.play(-1)
 
         self.ground = Ground(self)
 
@@ -325,7 +412,7 @@ class Game(object):
 
             self.display.fill(BACKGROUDS["game"])
 
-            # self.dino.draw(self)
+            self.dino.update(self)
             self.ground.draw(self)
 
             pygame.display.update()
@@ -333,14 +420,13 @@ class Game(object):
 
     def handle_common_keys(self, event):
         if event.type == pygame.QUIT:
-            self.quit_the_game()
+            self.quit()
 
         if event.type == pygame.KEYDOWN:
-            print event.key, pygame.K_LSUPER
             if event.key == 310:
                 self.cmd_key_down = True
             if self.cmd_key_down and event.key == pygame.K_q:
-                self.quit_the_game()
+                self.quit()
 
         if event.type == pygame.KEYUP:
             if event.key == 310:
