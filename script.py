@@ -25,7 +25,7 @@ BACKGROUDS = {
     "pause": None
 }
 
-FPS = 60
+FPS = 11
 
 # Text
 TEXT_COLOR = WHITE
@@ -41,17 +41,12 @@ CRASH_SOUND = "car_door.wav"
 BUTTON_WIDTH = 120
 BUTTON_HEIGHT = 50
 
-# Dino
-DINO_IMG_NAME = "t-rex3.png"
-# DINO_IMG_NAME = "bad.png"
-DINO_WIDTH = 180
-DINO_HEIGHT = 120
-DINO_MARGIN = 0
-DINO_INIT_POSX = 100
-DINO_INIT_POSY = None
-DINO_INIT_SPEED = 300
-DINO_JUMP = 80
-DINO_WEIGHT = 15
+# Player
+PLAYER_INIT_POSX = 100
+PLAYER_INIT_POSY = None
+PLAYER_INIT_SPEED = 100
+PLAYER_JUMP = 100
+PLAYER_WEIGHT = 15
 
 
 class Button(object):
@@ -195,79 +190,75 @@ class GameOverMenu(Menu):
                game.quit)
 
 
-class Dino(object):
+class Player(pygame.sprite.Sprite):
     def __init__(self, game):
-        print "create Dino"
-        self.width = DINO_WIDTH
-        self.height = DINO_HEIGHT
-
-        self.x = DINO_INIT_POSX
-        if DINO_INIT_POSY:
-            self.y = DINO_INIT_POSY
+        pygame.sprite.Sprite.__init__(self)
+        self.game = game
+        # set up asset folders
+        game_folder = os.path.dirname(__file__)
+        img_folder = os.path.join(game_folder, 'Base pack')
+        img_folder = os.path.join(img_folder, 'Player')
+        img_folder = os.path.join(img_folder, 'p1_walk')
+        img_folder = os.path.join(img_folder, 'PNG')
+        self.player_imgs = []
+        for i in range(1, 12):
+            print i
+            img_name = "p1_walk%s.png" % str(i if i > 9 else "0" + str(i))
+            print img_name
+            img_path = os.path.join(img_folder, img_name)
+            print "img_path", img_path, "..."
+            player_imgi = pygame.image.load(img_path).convert()
+            player_imgi.set_colorkey(BLACK)
+            self.player_imgs.append(player_imgi)
+        self.image = self.player_imgs[0]
+        self.image.set_colorkey(BLACK)
+        self.rect = self.image.get_rect()
+        self.rect.center = (DISPLAY_WIDTH / 2, DISPLAY_HEIGHT / 2)
+        self.rect.x = PLAYER_INIT_POSX
+        if PLAYER_INIT_POSY:
+            self.rect.y = PLAYER_INIT_POSY
         else:
-            self.y = DISPLAY_HEIGHT * 0.5
-        # self.speed = float(DINO_INIT_SPEED) / FPS
-        self.jump = float(DINO_JUMP) / FPS ** 0.5
-        self.weight = float(DINO_WEIGHT) / FPS
+            self.rect.y = DISPLAY_HEIGHT * 0.5
+        # self.speed = float(PLAYER_INIT_SPEED) / FPS
+        self.jump = float(PLAYER_JUMP) / FPS ** 0.5
+        self.weight = float(PLAYER_WEIGHT) / FPS
 
         self.dx = 0
         self.dy = self.weight
 
         self.jump_active = False
 
-        self.try_load_dino_image(DINO_IMG_NAME)
-        self.update(game)
-
-    def try_load_dino_image(self, dino_image_name):
-        try:
-            path_and_file = os.path.join("images", dino_image_name)
-            self.img = pygame.image.load(path_and_file)
-            print 5, self.img
-            pygame.display.set_icon(self.img)
-        except pygame.error:
-            import traceback
-            print(traceback.format_exc())
-            self.img = None
-
-    def update(self, game):
-
-        if self.y + (self.height - DINO_MARGIN) > game.ground.y - 20:
-            self.dy = 0
-        self.x += self.dx
-        self.y += self.dy
-        self.dy += self.weight
-        self.y = min(self.y, game.ground.y - (self.height - DINO_MARGIN))
-
-        if self.img is None:
-            self.obj = pygame.draw.rect(game.display, RED,
-                                        (self.x + DINO_MARGIN,
-                                         self.y,
-                                         self.width - 2 * DINO_MARGIN,
-                                         self.height-30))
-        else:
-
-            self.obj = game.display.blit(self.img, (self.x, self.y))
-
-        for objtree in game.ground.effects.tree.objs:
-            if self.obj.colliderect(objtree):
-                print "colisao"
-                game.over()
-
-    def handle_events(self, game, event):
+    def handle_events(self, event):
 
         if event.type == pygame.KEYDOWN:
-            print self.y, game.ground.y
+            print self.rect.bottom, self.game.ground.y
             if event.key in [pygame.K_UP, pygame.K_SPACE] and\
-                    self.y + (self.height - DINO_MARGIN) > game.ground.y - 20:
+                    self.rect.bottom > self.game.ground.y - 5:
                 self.jump_active = True
                 self.dy -= self.jump
-                self.y -= 50
+                self.rect.y -= 50
 
         # control the jump
         if event.type == pygame.KEYUP:
             if self.jump_active and event.key in [pygame.K_UP, pygame.K_SPACE]:
                 self.dy = max(self.dy, 0)
                 self.jump_active = False
+
+    def update(self):
+        # add interation between player and ground
+        if self.rect.bottom >= self.game.ground.y:
+            self.dy = 0
+            self.rect.bottom = self.game.ground.y
+
+        self.rect.x += self.dx
+        self.rect.y += self.dy
+        self.dy += self.weight
+
+        self.image = self.player_imgs[(self.game.i * 11 / FPS) % 11]
+
+        for objtree in self.game.ground.effects.tree.objs:
+            if self.rect.colliderect(objtree):
+                self.game.over()
 
 
 class GroundOrnaments(object):
@@ -335,7 +326,7 @@ class GroundEffects(object):
 class Ground(object):
     def __init__(self, game):
         self.y = DISPLAY_HEIGHT * 0.85
-        self.speed = float(DINO_INIT_SPEED) / FPS
+        self.speed = float(game.speed) / FPS
         self.color = WHITE
         self.ornaments = GroundOrnaments(self)
         self.effects = GroundEffects(game, self)
@@ -356,6 +347,12 @@ class Game(object):
         self.display = pygame.display.set_mode((DISPLAY_WIDTH, DISPLAY_HEIGHT))
         pygame.display.set_caption("A Dino Game")
         self.clock = pygame.time.Clock()
+
+        self.all_sprites = pygame.sprite.Group()
+        self.player = Player(self)
+        self.all_sprites.add(self.player)
+
+        self.speed = PLAYER_INIT_SPEED
 
         self.is_paused = False
         self.cmd_key_down = False
@@ -397,9 +394,10 @@ class Game(object):
         self.ground = Ground(self)
 
         self.display.fill(BACKGROUDS["game"])
-        self.dino = Dino(self)
 
+        self.i = 0
         while True:
+            self.i += 1
             for event in pygame.event.get():
                 print event
                 self.handle_common_keys(event)
@@ -408,11 +406,13 @@ class Game(object):
                     if event.key in [pygame.K_p, pygame.K_ESCAPE]:
                         PauseMenu(self, "PAUSED")
 
-                self.dino.handle_events(self, event)
+                self.player.handle_events(event)
 
             self.display.fill(BACKGROUDS["game"])
 
-            self.dino.update(self)
+            self.all_sprites.draw(self.display)
+            self.all_sprites.update()
+
             self.ground.draw(self)
 
             pygame.display.update()
